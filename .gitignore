@@ -1,0 +1,9 @@
+# editors
+*.swp
+*~
+**/*.swp
+**/*~
+
+# build
+build*
+**/build*
