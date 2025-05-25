@@ -1,43 +1,31 @@
-/*
- * Copyright (c) 2015-2019 Intel Corporation
- *
- * SPDX-License-Identifier: Apache-2.0
- */
 
-/**
- * @file
- * @brief WebUSB enabled custom class driver
- *
- * This is a modified version of CDC ACM class driver
- * to support the WebUSB.
- */
 
 #define LOG_LEVEL CONFIG_USB_DEVICE_LOG_LEVEL
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(webusb);
+LOG_MODULE_REGISTER(xinput);
 
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/usb/usb_device.h>
 #include <usb_descriptor.h>
 
-#include "webusb.h"
+#include "xinput.h"
 
 /* Max packet size for Bulk endpoints */
 #if defined(CONFIG_USB_DC_HAS_HS_SUPPORT)
-#define WEBUSB_BULK_EP_MPS		512
+#define XINPUT_BULK_EP_MPS		512
 #else
-#define WEBUSB_BULK_EP_MPS		32
+#define XINPUT_BULK_EP_MPS		32
 #endif
 
 /* Number of interfaces */
-#define WEBUSB_NUM_ITF			0x01
+#define XINPUT_NUM_ITF			0x01
 /* Number of Endpoints in the custom interface */
-#define WEBUSB_NUM_EP			0x02
+#define XINPUT_NUM_EP			0x02
 
-#define WEBUSB_IN_EP_IDX		0
-#define WEBUSB_OUT_EP_IDX		1
+#define XINPUT_IN_EP_IDX		0
+#define XINPUT_OUT_EP_IDX		1
 
-static struct webusb_req_handlers *req_handlers;
+static struct xinput_req_handlers *req_handlers;
 static struct xinput_in_struct{
 	uint8_t report_id;
 	uint8_t report_size;
@@ -65,7 +53,7 @@ static struct xinput_in_struct{
 };
 
 
-uint8_t rx_buf[WEBUSB_BULK_EP_MPS];
+uint8_t rx_buf[XINPUT_BULK_EP_MPS];
 
 #define INITIALIZER_IF(num_ep)				\
 	{								\
@@ -97,7 +85,7 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct {
 	struct xbox_undefined_descriptor vndr;
 	struct usb_ep_descriptor if0_out_ep;
 	
-} __packed webusb_desc = {
+} __packed xinput_desc = {
 	.if0 = INITIALIZER_IF(0x02),
 	.vndr = {
 		.bLength = 0x10,
@@ -126,7 +114,7 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct {
 
 /**
  * @brief Custom handler for standard requests in order to
- *        catch the request and return the WebUSB Platform
+ *        catch the request and return the Xinput Platform
  *        Capability Descriptor.
  *
  * @param pSetup    Information about the request to execute.
@@ -135,7 +123,7 @@ USBD_CLASS_DESCR_DEFINE(primary, 0) struct {
  *
  * @return  0 on success, negative errno code on fail.
  */
-int webusb_custom_handle_req(struct usb_setup_packet *pSetup,
+int xinput_custom_handle_req(struct usb_setup_packet *pSetup,
 			     int32_t *len, uint8_t **data)
 {
 	LOG_DBG("");
@@ -149,7 +137,7 @@ int webusb_custom_handle_req(struct usb_setup_packet *pSetup,
 }
 
 /**
- * @brief Handler called for WebUSB vendor specific commands.
+ * @brief Handler called for Xinput vendor specific commands.
  *
  * @param pSetup    Information about the request to execute.
  * @param len       Size of the buffer.
@@ -157,7 +145,7 @@ int webusb_custom_handle_req(struct usb_setup_packet *pSetup,
  *
  * @return  0 on success, negative errno code on fail.
  */
-int webusb_vendor_handle_req(struct usb_setup_packet *pSetup,
+int xinput_vendor_handle_req(struct usb_setup_packet *pSetup,
 			     int32_t *len, uint8_t **data)
 {
 	/* Call the callback */
@@ -174,9 +162,9 @@ int webusb_vendor_handle_req(struct usb_setup_packet *pSetup,
  * This function registers Custom and Vendor request callbacks
  * for handling the device requests.
  *
- * @param [in] handlers Pointer to WebUSB request handlers structure
+ * @param [in] handlers Pointer to Xinput request handlers structure
  */
-void webusb_register_request_handlers(struct webusb_req_handlers *handlers)
+void xinput_register_request_handlers(struct xinput_req_handlers *handlers)
 {
 	req_handlers = handlers;
 }
@@ -208,7 +196,7 @@ static int ctr=0;
 	}
 }
 /* Describe EndPoints configuration */
-static struct usb_ep_cfg_data webusb_ep_data[] = {
+static struct usb_ep_cfg_data xinput_ep_data[] = {
 	{
 		.ep_cb = xinput_in_cb,
 		.ep_addr = 0x81
@@ -224,7 +212,7 @@ static struct usb_ep_cfg_data webusb_ep_data[] = {
  *
  * @param status USB device status code.
  */
-static void webusb_dev_status_cb(struct usb_cfg_data *cfg,
+static void xinput_dev_status_cb(struct usb_cfg_data *cfg,
 				 enum usb_dc_status_code status,
 				 const uint8_t *param)
 {
@@ -244,7 +232,7 @@ static void webusb_dev_status_cb(struct usb_cfg_data *cfg,
 		break;
 	case USB_DC_CONFIGURED:
 		LOG_INF("USB device configured");
-		xinput_in_cb(webusb_ep_data[0].ep_addr, 0);
+		xinput_in_cb(xinput_ep_data[0].ep_addr, 0);
 		break;
 	case USB_DC_DISCONNECTED:
 		LOG_DBG("USB device disconnected");
@@ -266,15 +254,15 @@ static void webusb_dev_status_cb(struct usb_cfg_data *cfg,
 
 
 
-USBD_DEFINE_CFG_DATA(webusb_config) = {
+USBD_DEFINE_CFG_DATA(xinput_config) = {
 	.usb_device_description = NULL,
-	.interface_descriptor = &webusb_desc.if0,
-	.cb_usb_status = webusb_dev_status_cb,
+	.interface_descriptor = &xinput_desc.if0,
+	.cb_usb_status = xinput_dev_status_cb,
 	.interface = {
 		.class_handler = NULL,
-		.custom_handler = webusb_custom_handle_req,
-		.vendor_handler = webusb_vendor_handle_req,
+		.custom_handler = xinput_custom_handle_req,
+		.vendor_handler = xinput_vendor_handle_req,
 	},
-	.num_endpoints = ARRAY_SIZE(webusb_ep_data),
-	.endpoint = webusb_ep_data
+	.num_endpoints = ARRAY_SIZE(xinput_ep_data),
+	.endpoint = xinput_ep_data
 };
